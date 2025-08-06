@@ -35,10 +35,10 @@
 		"supportsaudioprocessing" : false
 	},
 	"preview" : "preview.jpg",
-	"snapshotformat" : -1,
-	"snapshotoverlay" : "",
+	"ratingsex" : "none",
+	"ratingviolence" : "none",
 	"tags" : [ "Technology" ],
 	"title" : "Sticky Note Pad",
-	"type" : "web",
+	"type" : "Web",
 	"version" : 0
 }

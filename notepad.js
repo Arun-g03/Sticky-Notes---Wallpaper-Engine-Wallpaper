@@ -2,7 +2,7 @@
 // Handles sticky note creation, editing, resizing, and removal
 
 class StickyNote {
-    constructor(x, y, width = 200, height = 150, color = '#ffff99', text = '') {
+    constructor(x, y, width = 200, height = 150, color = '#ffff99', text = '', fontSize = 14) {
         this.id = 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         this.x = x;
         this.y = y;
@@ -10,6 +10,7 @@ class StickyNote {
         this.height = height;
         this.color = color;
         this.text = text;
+        this.fontSize = fontSize;
         this.isDragging = false;
         this.isResizing = false;
         this.isEditing = false;
@@ -19,6 +20,11 @@ class StickyNote {
         this.element = null;
         this.textElement = null;
         this.saveButton = null; // Reference to save button
+        this.virtualKeyboard = null;
+        this.screenBounds = null;
+        this.wallpaper = null;
+        this.wordList = [];
+        this.resizeTimeout = null;
         this.createNote();
     }
 
@@ -41,7 +47,7 @@ class StickyNote {
             cursor: move;
             user-select: none;
             font-family: 'Arial', sans-serif;
-            font-size: 14px;
+            font-size: ${this.fontSize}px;
             padding: 10px;
             box-sizing: border-box;
             z-index: 1000;
@@ -436,7 +442,8 @@ class StickyNote {
                 y: this.y,
                 color: this.isValidHexColor(this.color) ? this.color : '#ffff99',
                 width: this.width,
-                height: this.height
+                height: this.height,
+                fontSize: this.fontSize
             };
             
             // Get existing notes from localStorage
@@ -566,7 +573,7 @@ class StickyNote {
             ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
             ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'"],
             ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
-            ['space', '↵', '✕']
+            ['A-', 'A+', 'space', '↵', '✕']
         ];
 
         keys.forEach(row => {
@@ -1504,6 +1511,12 @@ class StickyNote {
                 textarea.blur();
                 // Don't refocus or update suggestions when closing keyboard
                 return;
+            case 'fontSizeUp':
+                this.changeFontSize(2);
+                return;
+            case 'fontSizeDown':
+                this.changeFontSize(-2);
+                return;
             default:
             // Insert character at cursor position
             const newText = text.slice(0, start) + key + text.slice(end);
@@ -1528,6 +1541,29 @@ class StickyNote {
             // Force cursor to end of text for virtual keyboard
             textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
         }, 50);
+    }
+
+    changeFontSize(delta) {
+        // Change font size with limits (double the max possible size)
+        const newSize = Math.max(8, Math.min(72, this.fontSize + delta));
+        if (newSize !== this.fontSize) {
+            this.fontSize = newSize;
+            
+            // Update the note element font size
+            if (this.element) {
+                this.element.style.fontSize = this.fontSize + 'px';
+            }
+            
+            // Update the textarea font size if it exists
+            if (this.textElement) {
+                this.textElement.style.fontSize = this.fontSize + 'px';
+            }
+            
+            // Save the change
+            this.saveToStorage();
+            
+            console.log(`Font size changed to ${this.fontSize}px`);
+        }
     }
 
     // Debounced keyboard size update for better performance during resize
@@ -1595,6 +1631,8 @@ class StickyNote {
                         keyWidth = buttonWidth * 1.5; // Enter and clear
                     } else if (key === '⌫') {
                         keyWidth = buttonWidth * 1.2; // Backspace
+                    } else if (key === 'A+' || key === 'A-') {
+                        keyWidth = buttonWidth * 1.2; // Font size controls
                     }
                     totalRowWidth += keyWidth;
                 });
@@ -1622,6 +1660,8 @@ class StickyNote {
                             finalWidth = adjustedButtonWidth * 1.5;
                         } else if (key === '⌫') {
                             finalWidth = adjustedButtonWidth * 1.2;
+                        } else if (key === 'A+' || key === 'A-') {
+                            finalWidth = adjustedButtonWidth * 1.2;
                         }
                         
                         button.style.width = finalWidth + 'px';
@@ -1647,6 +1687,8 @@ class StickyNote {
                         } else if (key === '↵' || key === '✕') {
                             finalWidth = buttonWidth * 1.5;
                         } else if (key === '⌫') {
+                            finalWidth = buttonWidth * 1.2;
+                        } else if (key === 'A+' || key === 'A-') {
                             finalWidth = buttonWidth * 1.2;
                         }
                         
@@ -1764,32 +1806,113 @@ class NotepadWallpaper {
             this.clearAllNotes();
         });
 
-        // Create instructions
-        const instructions = document.createElement('div');
-        instructions.style.cssText = `
+        // Create help button
+        const helpButton = document.createElement('button');
+        helpButton.textContent = '❓ Help';
+        helpButton.style.cssText = `
             position: fixed;
-            bottom: 30px;
+            bottom: 80px;
             left: 20px;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.8);
             color: white;
-            padding: 10px;
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
             border-radius: 5px;
+            cursor: pointer;
             font-size: 12px;
             z-index: 1002;
-            pointer-events: none;
+            pointer-events: auto;
+            transition: all 0.2s ease;
         `;
-        instructions.innerHTML = `
-            <strong>Interactive Notes Wallpaper</strong><br>
-            • Click and drag notes to move them<br>
-            • Double-click to edit text<br>
-            • Use the resize handle to change size<br>
-            • Right-click for more options
+        
+        // Create instructions panel
+        const instructionsPanel = document.createElement('div');
+        instructionsPanel.style.cssText = `
+            position: fixed;
+            bottom: 120px;
+            left: 20px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1001;
+            pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            max-width: 300px;
+            display: none;
+            backdrop-filter: blur(10px);
         `;
+        instructionsPanel.innerHTML = `
+            <div style="margin-bottom: 10px; font-weight: bold; color: #4CAF50;">📝 Interactive Notes Wallpaper</div>
+            <div style="margin-bottom: 8px;"><strong>• Move:</strong> Click and drag notes</div>
+            <div style="margin-bottom: 8px;"><strong>• Edit:</strong> Double-click to open keyboard</div>
+            <div style="margin-bottom: 8px;"><strong>• Resize:</strong> Drag the resize handle</div>
+            <div style="margin-bottom: 8px;"><strong>• Color:</strong> Right-click for color options</div>
+            <div style="margin-bottom: 8px;"><strong>• Delete:</strong> Click the red X button</div>
+            <div style="margin-bottom: 8px;"><strong>• Add:</strong> Use the + Add Note button</div>
+            <div style="margin-bottom: 8px;"><strong>• Clear All:</strong> Use the 🗑️ Clear All button</div>
+            <div style="margin-bottom: 0px;"><strong>• Keyboard controls:</strong> Bottom left = resize, bottom right = move/reposition, A+/A- = font size</div>
+        `;
+        
+        // Add close button to instructions panel
+        const closeInstructionsButton = document.createElement('button');
+        closeInstructionsButton.textContent = '✕';
+        closeInstructionsButton.style.cssText = `
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+        instructionsPanel.appendChild(closeInstructionsButton);
+        
+        // Toggle instructions panel
+        let instructionsVisible = false;
+        helpButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            instructionsVisible = !instructionsVisible;
+            instructionsPanel.style.display = instructionsVisible ? 'block' : 'none';
+            helpButton.textContent = instructionsVisible ? '❌ Help' : '❓ Help';
+            helpButton.style.background = instructionsVisible ? 'rgba(255,0,0,0.8)' : 'rgba(0,0,0,0.8)';
+        });
+        
+        // Close instructions when clicking close button
+        closeInstructionsButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            instructionsVisible = false;
+            instructionsPanel.style.display = 'none';
+            helpButton.textContent = '❓ Help';
+            helpButton.style.background = 'rgba(0,0,0,0.8)';
+        });
+        
+        // Close instructions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (instructionsVisible && 
+                !instructionsPanel.contains(e.target) && 
+                !helpButton.contains(e.target)) {
+                instructionsVisible = false;
+                instructionsPanel.style.display = 'none';
+                helpButton.textContent = '❓ Help';
+                helpButton.style.background = 'rgba(0,0,0,0.8)';
+            }
+        });
 
         document.body.appendChild(this.container);
         document.body.appendChild(addButton);
         document.body.appendChild(clearButton);
-        document.body.appendChild(instructions);
+        document.body.appendChild(helpButton);
+        document.body.appendChild(instructionsPanel);
 
         // Enable pointer events for the container
         this.container.style.pointerEvents = 'auto';
@@ -1864,7 +1987,8 @@ class NotepadWallpaper {
                     noteData.width || 200,
                     noteData.height || 150,
                     this.isValidHexColor(noteData.color) ? noteData.color : defaultColor,
-                    noteData.text || ''
+                    noteData.text || '',
+                    noteData.fontSize || 14
                 );
                 
                 // Set the saved ID if it exists

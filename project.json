@@ -1,56 +1,28 @@
 {
 	"contentrating" : "Everyone",
-	"description" : "Interactive note-taking wallpaper with draggable sticky notes. Create, edit, and organize your thoughts directly on your desktop background.",
+	"description" : "Interactive note-taking wallpaper with draggable sticky notes. Create, edit, and organize your thoughts directly on your desktop background.\n\nNOTE: since in-wallpaper-keyboard-input is disabled for security reasons within wallpaper engine, the interactive keyboard becomes necessary.",
 	"file" : "index.html",
 	"general" : 
 	{
 		"properties" : 
 		{
-			"note_1_color" : 
-			{
-				"index" : 4,
-				"order" : 104,
-				"text" : "Note 1 Color",
-				"type" : "color",
-				"value" : "255 255 153"
-			},
-			"note_1_text" : 
-			{
-				"index" : 1,
-				"order" : 101,
-				"text" : "Note 1 Text",
-				"type" : "textinput",
-				"value" : ""
-			},
-			"note_1_x" : 
-			{
-				"index" : 2,
-				"max" : 1920,
-				"min" : 0,
-				"order" : 102,
-				"text" : "Note 1 X Position",
-				"type" : "slider",
-				"value" : 100
-			},
-			"note_1_y" : 
-			{
-				"index" : 3,
-				"max" : 1080,
-				"min" : 0,
-				"order" : 103,
-				"text" : "Note 1 Y Position",
-				"type" : "slider",
-				"value" : 100
-			},
-			"note_count" : 
+			"default_note_color" : 
 			{
 				"index" : 0,
-				"max" : 50,
-				"min" : 0,
 				"order" : 100,
-				"text" : "Number of Notes",
+				"text" : "Default Note Color",
+				"type" : "textinput",
+				"value" : "#ffff99"
+			},
+			"max_notes" : 
+			{
+				"index" : 1,
+				"max" : 20,
+				"min" : 1,
+				"order" : 101,
+				"text" : "Maximum Notes",
 				"type" : "slider",
-				"value" : 0
+				"value" : 5
 			},
 			"schemecolor" : 
 			{
@@ -65,18 +37,8 @@
 	"preview" : "preview.jpg",
 	"snapshotformat" : -1,
 	"snapshotoverlay" : "",
-	"tags" : 
-	[
-		"Abstract",
-		"Anime",
-		"Cartoon",
-		"Fantasy",
-		"Game",
-		"Movie",
-		"Nature",
-		"Other"
-	],
-	"title" : "Interactive Notes Wallpaper",
+	"tags" : [ "Technology" ],
+	"title" : "Sticky Note Pad",
 	"type" : "web",
 	"version" : 0
 }

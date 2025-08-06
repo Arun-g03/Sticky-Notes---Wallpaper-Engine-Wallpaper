@@ -59,19 +59,22 @@ A beautiful and functional notetaking wallpaper that allows you to create, edit,
 The wallpaper includes several customizable properties in Wallpaper Engine:
 
 - **Scheme Color**: Changes the overall theme color
-- **Default Note Color**: Sets the default color for new notes
-- **Show Instructions**: Toggle the instruction panel visibility
-- **Auto Save**: Enable/disable automatic saving of notes
+- **Default Note Color**: Sets the default color for new notes (hex format: #RRGGBB)
+- **Maximum Notes**: Sets the maximum number of notes allowed (1-20)
 
 ## Technical Details
 
 - Built with vanilla JavaScript (no external dependencies)
-- Uses Wallpaper Engine's properties system for data persistence
+- Uses localStorage for data persistence (works in any browser)
+- Configurable via Wallpaper Engine properties (default color, max notes)
+- Supports unlimited notes with full persistence (position, text, color, size)
+- Hex color format for consistent color handling
 - Virtual keyboard with predictive text using a comprehensive word list
 - Responsive design that works on any resolution
 - Screen boundary detection to avoid taskbar and edges
 - Optimized for performance with smooth animations
 - Compatible with Wallpaper Engine's HTML wallpaper format
+- Fallback to localStorage when Wallpaper Engine is not available
 
 ## File Structure
 
@@ -117,6 +120,12 @@ This wallpaper works best in modern browsers that support:
 - **Word suggestions not working**: Check that word_list.js is properly loaded
 - **Performance issues**: Try reducing the number of notes if you have many
 - **Display issues**: Ensure your graphics drivers are up to date
+- **Persistence issues**: 
+  - Notes are stored in browser localStorage
+  - Check browser console for error messages
+  - Try the test_persistence.html file to debug storage issues
+  - Clear browser data if notes don't load properly
+- **Color issues**: The wallpaper uses hex color format (#RRGGBB) for all colors
 
 ## License
 

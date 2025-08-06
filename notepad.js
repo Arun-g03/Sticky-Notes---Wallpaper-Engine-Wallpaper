@@ -13,10 +13,12 @@ class StickyNote {
         this.isDragging = false;
         this.isResizing = false;
         this.isEditing = false;
+        this.keyboardManuallyClosed = false; // Track if keyboard was manually closed
         this.dragOffset = { x: 0, y: 0 };
         this.resizeHandle = null;
         this.element = null;
         this.textElement = null;
+        this.saveButton = null; // Reference to save button
         this.createNote();
     }
 
@@ -74,16 +76,85 @@ class StickyNote {
         const colorPicker = document.createElement('input');
         colorPicker.type = 'color';
         colorPicker.value = this.color;
+        
+        // Calculate initial border color based on note color brightness
+        const brightness = this.getColorBrightness(this.color);
+        const initialBorderColor = brightness > 128 ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.6)';
+        
         colorPicker.style.cssText = `
             width: 20px;
             height: 20px;
-            border: none;
-            border-radius: 2px;
+            border: 2px solid ${initialBorderColor};
+            border-radius: 4px;
             cursor: pointer;
+            background: ${this.color};
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         `;
+        
+        // Add hover effects for the color picker
+        colorPicker.addEventListener('mouseenter', () => {
+            const brightness = this.getColorBrightness(this.color);
+            const hoverBorderColor = brightness > 128 ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.8)';
+            colorPicker.style.border = `2px solid ${hoverBorderColor}`;
+            colorPicker.style.transform = 'scale(1.05)';
+            colorPicker.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+        });
+        
+        colorPicker.addEventListener('mouseleave', () => {
+            const brightness = this.getColorBrightness(this.color);
+            const normalBorderColor = brightness > 128 ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.6)';
+            colorPicker.style.border = `2px solid ${normalBorderColor}`;
+            colorPicker.style.transform = 'scale(1)';
+            colorPicker.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+        });
         colorPicker.addEventListener('change', (e) => {
             this.color = e.target.value;
             this.element.style.background = this.color;
+            
+            // Update the color picker's background to show the new color
+            colorPicker.style.background = this.color;
+            
+            // Update border color based on the new color brightness
+            const brightness = this.getColorBrightness(this.color);
+            const borderColor = brightness > 128 ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.6)';
+            colorPicker.style.border = `2px solid ${borderColor}`;
+            
+            // Update text color based on the new color brightness
+            this.updateTextColor();
+        });
+
+        // Save button (initially hidden)
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '✓';
+        saveBtn.style.cssText = `
+            width: 20px;
+            height: 20px;
+            border: none;
+            background: rgba(0,255,0,0.8);
+            color: white;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: none;
+            transition: all 0.2s ease;
+        `;
+        saveBtn.addEventListener('click', () => {
+            this.saveAndCloseKeyboard();
+        });
+        
+        // Add hover effects for the save button
+        saveBtn.addEventListener('mouseenter', () => {
+            saveBtn.style.background = 'rgba(0,255,0,0.9)';
+            saveBtn.style.transform = 'scale(1.1)';
+            saveBtn.style.boxShadow = '0 2px 6px rgba(0,255,0,0.3)';
+        });
+        
+        saveBtn.addEventListener('mouseleave', () => {
+            saveBtn.style.background = 'rgba(0,255,0,0.8)';
+            saveBtn.style.transform = 'scale(1)';
+            saveBtn.style.boxShadow = 'none';
         });
 
         // Delete button
@@ -105,7 +176,11 @@ class StickyNote {
         });
 
         controls.appendChild(colorPicker);
+        controls.appendChild(saveBtn);
         controls.appendChild(deleteBtn);
+        
+        // Store reference to save button
+        this.saveButton = saveBtn;
         header.appendChild(title);
         header.appendChild(controls);
 
@@ -113,6 +188,12 @@ class StickyNote {
         this.textElement = document.createElement('textarea');
         this.textElement.value = this.text;
         this.textElement.placeholder = 'Click here to type your note...';
+        
+        // Calculate initial text color based on note color brightness
+        const initialBrightness = this.getColorBrightness(this.color);
+        const initialTextColor = initialBrightness > 128 ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.9)';
+        const initialPlaceholderColor = initialBrightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+        
         this.textElement.style.cssText = `
             width: 100%;
             height: 100%;
@@ -123,7 +204,7 @@ class StickyNote {
             font-family: 'Segoe UI', 'Arial', sans-serif;
             font-size: 13px;
             line-height: 1.5;
-            color: rgba(0,0,0,0.9);
+            color: ${initialTextColor};
             cursor: pointer;
             padding: 0;
             box-sizing: border-box;
@@ -135,6 +216,9 @@ class StickyNote {
             unicode-bidi: normal;
             writing-mode: horizontal-tb;
         `;
+        
+        // Set placeholder color
+        this.textElement.style.setProperty('--placeholder-color', initialPlaceholderColor);
         this.textElement.readOnly = false;
         this.textElement.addEventListener('keydown', (e) => {
             // Prevent direct typing, only allow virtual keyboard
@@ -176,7 +260,14 @@ class StickyNote {
             this.element.style.zIndex = '1001';
             // Add visual editing state
             this.element.classList.add('editing');
-            this.showVirtualKeyboard();
+            
+            // Show keyboard if it's not already open, regardless of manual close status
+            if (!this.virtualKeyboard || !this.virtualKeyboard.parentNode) {
+                this.showVirtualKeyboard();
+            } else {
+                // Show save button even if keyboard is already open
+                this.showSaveButton();
+            }
         });
 
         this.textElement.addEventListener('blur', (e) => {
@@ -196,6 +287,8 @@ class StickyNote {
                     // Remove visual editing state
                     this.element.classList.remove('editing');
                     this.hideVirtualKeyboard();
+                    // Hide save button
+                    this.hideSaveButton();
                 }
             }, 100);
         });
@@ -334,48 +427,49 @@ class StickyNote {
     }
 
     saveToStorage() {
-        // Check if wallpaper engine is available
-        if (!this.wallpaper) {
-            console.log('Wallpaper engine not available, skipping save');
-            return;
-        }
-        
         try {
-            // Get current note count
-            const noteCount = parseInt(this.wallpaper.getProperty('note_count') || 0);
+            // Save to localStorage
+            const noteData = {
+                id: this.id,
+                text: this.text,
+                x: this.x,
+                y: this.y,
+                color: this.isValidHexColor(this.color) ? this.color : '#ffff99',
+                width: this.width,
+                height: this.height
+            };
             
-            // Find this note's index
-            let noteIndex = -1;
-            for (let i = 1; i <= noteCount; i++) {
-                const noteId = this.wallpaper.getProperty(`note_${i}_id`);
-                if (noteId === this.id) {
-                    noteIndex = i;
-                    break;
-                }
+            // Get existing notes from localStorage
+            const existingNotes = JSON.parse(localStorage.getItem('stickyNotes') || '[]');
+            
+            // Find if this note already exists
+            const existingIndex = existingNotes.findIndex(note => note.id === this.id);
+            
+            if (existingIndex !== -1) {
+                // Update existing note
+                existingNotes[existingIndex] = noteData;
+            } else {
+                // Add new note
+                existingNotes.push(noteData);
             }
             
-            // If note doesn't exist, add it
-            if (noteIndex === -1) {
-                noteIndex = noteCount + 1;
-                this.wallpaper.setProperty('note_count', noteIndex);
-            }
+            // Save back to localStorage
+            localStorage.setItem('stickyNotes', JSON.stringify(existingNotes));
             
-            // Save note data to properties
-            this.wallpaper.setProperty(`note_${noteIndex}_id`, this.id);
-            this.wallpaper.setProperty(`note_${noteIndex}_text`, this.text);
-            this.wallpaper.setProperty(`note_${noteIndex}_x`, this.x);
-            this.wallpaper.setProperty(`note_${noteIndex}_y`, this.y);
-            this.wallpaper.setProperty(`note_${noteIndex}_color`, this.color);
-            this.wallpaper.setProperty(`note_${noteIndex}_width`, this.width);
-            this.wallpaper.setProperty(`note_${noteIndex}_height`, this.height);
-            
-            console.log(`Note saved to property note_${noteIndex}`);
+            console.log(`Note saved to localStorage: ${this.id}`);
         } catch (error) {
             console.log('Error saving to storage:', error);
         }
     }
 
     remove() {
+        // Close virtual keyboard if it's open
+        if (this.virtualKeyboard && this.virtualKeyboard.parentNode) {
+            this.virtualKeyboard.parentNode.removeChild(this.virtualKeyboard);
+            this.virtualKeyboard = null;
+            console.log('Keyboard closed when note was removed');
+        }
+        
         // Clean up event listeners
         if (this.mouseMoveHandler) {
             document.removeEventListener('mousemove', this.mouseMoveHandler);
@@ -386,21 +480,14 @@ class StickyNote {
         
         this.element.remove();
         
-        // Remove from properties
-        const noteCount = parseInt(this.wallpaper.getProperty('note_count') || 0);
-        for (let i = 1; i <= noteCount; i++) {
-            const noteId = this.wallpaper.getProperty(`note_${i}_id`);
-            if (noteId === this.id) {
-                // Clear this note's properties
-                this.wallpaper.setProperty(`note_${i}_id`, '');
-                this.wallpaper.setProperty(`note_${i}_text`, '');
-                this.wallpaper.setProperty(`note_${i}_x`, 0);
-                this.wallpaper.setProperty(`note_${i}_y`, 0);
-                this.wallpaper.setProperty(`note_${i}_color`, '255 255 153');
-                this.wallpaper.setProperty(`note_${i}_width`, 200);
-                this.wallpaper.setProperty(`note_${i}_height`, 150);
-                break;
-            }
+        // Remove from localStorage
+        try {
+            const existingNotes = JSON.parse(localStorage.getItem('stickyNotes') || '[]');
+            const filteredNotes = existingNotes.filter(note => note.id !== this.id);
+            localStorage.setItem('stickyNotes', JSON.stringify(filteredNotes));
+            console.log(`Note removed from localStorage: ${this.id}`);
+        } catch (error) {
+            console.log('Error removing from storage:', error);
         }
     }
 
@@ -419,8 +506,8 @@ class StickyNote {
         const taskbarHeight = this.screenBounds ? this.screenBounds.taskbarHeight : 40;
         
         // Position keyboard in bottom center, avoiding taskbar
-        const keyboardWidth = 600; // Initial width (increased from 500)
-        const keyboardHeight = 250; // Initial height
+        const keyboardWidth = Math.min(600, Math.max(300, screenWidth - 40)); // Responsive width with minimum
+        const keyboardHeight = Math.min(400, Math.max(200, screenHeight - taskbarHeight - 40)); // Increased height to fit all rows
         const left = Math.max(20, (screenWidth - keyboardWidth) / 2);
         const top = Math.max(20, screenHeight - taskbarHeight - keyboardHeight - 20);
         
@@ -430,7 +517,7 @@ class StickyNote {
             left: ${left}px;
             background: rgba(40,40,40,0.95);
             border-radius: 8px;
-            padding: 12px;
+            padding: 10px;
             z-index: 10000;
             display: flex;
             flex-direction: column;
@@ -439,7 +526,7 @@ class StickyNote {
             width: ${keyboardWidth}px;
             height: ${keyboardHeight}px;
             min-width: 300px;
-            min-height: 150px;
+            min-height: 200px;
             resize: both;
             overflow: hidden;
             cursor: move;
@@ -452,11 +539,11 @@ class StickyNote {
         this.suggestionsBar.style.cssText = `
             display: flex;
             gap: 4px;
-            padding: 6px;
+            padding: 4px;
             background: rgba(50,50,50,0.9);
             border-radius: 4px;
-            margin-bottom: 8px;
-            min-height: 32px;
+            margin-bottom: 6px;
+            min-height: 28px;
             align-items: center;
             flex-wrap: wrap;
             justify-content: center;
@@ -495,6 +582,7 @@ class StickyNote {
             row.forEach(key => {
                 const keyButton = document.createElement('button');
                 keyButton.textContent = key;
+                keyButton.dataset.key = key; // Add data attribute for key identification
                 keyButton.style.cssText = `
                     border: none;
                     background: rgba(60,60,60,0.9);
@@ -570,6 +658,13 @@ class StickyNote {
         // Store control elements for later reference
         this.moveButton = moveButton;
         this.resizeHandle = resizeHandle;
+        
+        // Initialize keyboard sizes after creation
+        setTimeout(() => {
+            this.updateKeyboardButtonSizes();
+        }, 10);
+        
+
 
         // Add resize functionality
         let isResizing = false;
@@ -599,8 +694,10 @@ class StickyNote {
             const deltaY = e.clientY - resizeStartY;
             
             // Calculate new dimensions (resizing from bottom-left)
-            const newWidth = Math.max(300, resizeStartWidth - deltaX);
-            const newHeight = Math.max(150, resizeStartHeight - deltaY);
+            const minWidth = 300; // Minimum width - smaller to fit all keys
+            const minHeight = 200; // Increased minimum height to fit all rows
+            const newWidth = Math.max(minWidth, resizeStartWidth - deltaX);
+            const newHeight = Math.max(minHeight, resizeStartHeight - deltaY);
             
             // Constrain to screen bounds
             const maxWidth = this.screenBounds ? this.screenBounds.right - 40 : window.innerWidth - 40;
@@ -619,14 +716,20 @@ class StickyNote {
             this.virtualKeyboard.style.left = newLeft + 'px';
             this.virtualKeyboard.style.top = newTop + 'px';
             
-            // Update button sizes
-            this.updateKeyboardButtonSizes();
+            // Debounced button size update for better performance
+            this.debouncedUpdateKeyboardSizes();
         };
 
         const handleResizeEnd = () => {
             isResizing = false;
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', handleResizeEnd);
+            
+            // Final update after resize ends
+            if (this.resizeTimeout) {
+                clearTimeout(this.resizeTimeout);
+            }
+            this.updateKeyboardButtonSizes();
         };
 
         // Add movement functionality
@@ -684,7 +787,15 @@ class StickyNote {
 
         document.body.appendChild(this.virtualKeyboard);
         
-
+        // Set editing state
+        this.isEditing = true;
+        this.element.classList.add('editing');
+        
+        // Reset manual close flag since keyboard is being shown
+        this.keyboardManuallyClosed = false;
+        
+        // Show save button when keyboard is open
+        this.showSaveButton();
         
         // Set initial button sizes
         this.updateKeyboardButtonSizes();
@@ -734,11 +845,52 @@ class StickyNote {
             return;
         }
         
-        // Find matching words (case-insensitive)
-        console.log('Looking for words starting with:', currentWord);
-        const suggestions = this.wordList.filter(word => 
-            word.toLowerCase().startsWith(currentWord.toLowerCase())
-        ).slice(0, 5); // Limit to 5 suggestions
+        // Get context from the current text
+        const context = this.getTextContext();
+        const currentWordLower = currentWord.toLowerCase();
+        
+        // Find matching words with improved relevance scoring
+        console.log('Looking for words starting with:', currentWord, 'Context:', context);
+        
+        let suggestions = this.wordList
+            .filter(word => {
+                const wordLower = word.toLowerCase();
+                return wordLower.startsWith(currentWordLower) && 
+                       wordLower !== currentWordLower; // Don't suggest the exact same word
+            })
+            .map(word => {
+                // Calculate relevance score
+                let score = 0;
+                const wordLower = word.toLowerCase();
+                
+                // Exact prefix match gets highest score
+                if (wordLower.startsWith(currentWordLower)) {
+                    score += 100;
+                }
+                
+                // Shorter words get preference (more likely to be what user wants)
+                score += Math.max(0, 20 - wordLower.length);
+                
+                // Common words get bonus
+                if (this.isCommonWord(wordLower)) {
+                    score += 50;
+                }
+                
+                // Context relevance
+                if (context && this.isContextuallyRelevant(wordLower, context)) {
+                    score += 30;
+                }
+                
+                // Frequency bonus (if we had frequency data)
+                if (this.isFrequentWord(wordLower)) {
+                    score += 25;
+                }
+                
+                return { word, score };
+            })
+            .sort((a, b) => b.score - a.score) // Sort by relevance score
+            .slice(0, 6) // Get top 6 suggestions
+            .map(item => item.word);
         
         console.log('Found suggestions:', suggestions);
         
@@ -775,12 +927,12 @@ class StickyNote {
             });
             
             suggestionButton.addEventListener('mouseenter', () => {
-                suggestionButton.style.background = 'rgba(255,255,255,0.4)';
+                suggestionButton.style.background = 'rgba(90,90,90,0.9)';
                 suggestionButton.style.transform = 'scale(1.05)';
             });
             
             suggestionButton.addEventListener('mouseleave', () => {
-                suggestionButton.style.background = 'rgba(255,255,255,0.25)';
+                suggestionButton.style.background = 'rgba(70,70,70,0.9)';
                 suggestionButton.style.transform = 'scale(1)';
             });
             
@@ -883,19 +1035,19 @@ class StickyNote {
         // Clear existing suggestions
         this.suggestionsBar.innerHTML = '';
         
-        // Common next words to suggest
-        const commonNextWords = [
-            'the', 'a', 'is', 'was', 'and', 'or', 'but', 'in', 'on', 'at',
-            'to', 'for', 'of', 'with', 'by', 'from', 'this', 'that', 'it',
-            'you', 'he', 'she', 'they', 'we', 'I', 'me', 'him', 'her', 'them',
-            'my', 'your', 'his', 'her', 'their', 'our', 'its', 'some', 'any',
-            'all', 'many', 'few', 'much', 'more', 'most', 'very', 'really',
-            'quite', 'rather', 'too', 'also', 'just', 'only', 'even', 'still',
-            'again', 'always', 'never', 'sometimes', 'often', 'usually'
-        ];
+        // Get context from the current text
+        const context = this.getTextContext();
         
-        // Show common next words
-        const suggestions = commonNextWords.slice(0, 5);
+        // Smart next word suggestions based on context
+        let suggestions = this.getContextualNextWords(context);
+        
+        // Fallback to common words if no contextual suggestions
+        if (suggestions.length === 0) {
+            suggestions = this.getCommonNextWords();
+        }
+        
+        // Limit to 5 suggestions
+        suggestions = suggestions.slice(0, 5);
         
         suggestions.forEach(word => {
             const suggestionButton = document.createElement('button');
@@ -938,6 +1090,269 @@ class StickyNote {
         // Make sure suggestions bar is visible
         this.suggestionsBar.style.display = 'flex';
         this.suggestionsBar.style.visibility = 'visible';
+    }
+
+    // Helper methods for improved word suggestions
+    getTextContext() {
+        const text = this.textElement.value;
+        const words = text.trim().split(/\s+/);
+        
+        // Get the last few words for context
+        const recentWords = words.slice(-3);
+        return recentWords.join(' ').toLowerCase();
+    }
+
+    isCommonWord(word) {
+        const commonWords = [
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'from', 'this', 'that', 'it', 'is', 'was', 'are',
+            'you', 'he', 'she', 'they', 'we', 'I', 'me', 'him', 'her', 'them',
+            'my', 'your', 'his', 'her', 'their', 'our', 'its', 'some', 'any',
+            'all', 'many', 'few', 'much', 'more', 'most', 'very', 'really',
+            'quite', 'rather', 'too', 'also', 'just', 'only', 'even', 'still',
+            'again', 'always', 'never', 'sometimes', 'often', 'usually', 'can',
+            'will', 'would', 'could', 'should', 'may', 'might', 'must', 'have',
+            'has', 'had', 'do', 'does', 'did', 'be', 'been', 'being', 'get',
+            'got', 'getting', 'go', 'goes', 'going', 'went', 'gone', 'make',
+            'makes', 'making', 'made', 'take', 'takes', 'taking', 'took', 'taken'
+        ];
+        return commonWords.includes(word);
+    }
+
+    isFrequentWord(word) {
+        const frequentWords = [
+            'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
+            'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
+            'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her',
+            'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there',
+            'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get',
+            'which', 'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no',
+            'just', 'him', 'know', 'take', 'people', 'into', 'year', 'your',
+            'good', 'some', 'could', 'them', 'see', 'other', 'than', 'then',
+            'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also',
+            'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first',
+            'well', 'way', 'even', 'new', 'want', 'because', 'any', 'these',
+            'give', 'day', 'most', 'us'
+        ];
+        return frequentWords.includes(word);
+    }
+
+    isContextuallyRelevant(word, context) {
+        // Simple context matching - can be enhanced with more sophisticated NLP
+        const contextWords = context.split(/\s+/);
+        
+        // Check if word is related to context words
+        for (const contextWord of contextWords) {
+            if (this.areWordsRelated(word, contextWord)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    areWordsRelated(word1, word2) {
+        // Simple word relationship detection
+        // This could be enhanced with a proper thesaurus or semantic analysis
+        
+        // Check for common prefixes/suffixes
+        if (word1.startsWith(word2) || word2.startsWith(word1)) {
+            return true;
+        }
+        
+        // Check for similar word families
+        const wordFamilies = {
+            'work': ['working', 'worker', 'workplace', 'workload'],
+            'time': ['timing', 'timer', 'timeline', 'timeout'],
+            'help': ['helping', 'helper', 'helpful', 'helpless'],
+            'play': ['playing', 'player', 'playful', 'playground'],
+            'learn': ['learning', 'learner', 'learned', 'lesson'],
+            'write': ['writing', 'writer', 'written', 'writings'],
+            'read': ['reading', 'reader', 'readable', 'readings'],
+            'think': ['thinking', 'thought', 'thinker', 'thoughtful'],
+            'feel': ['feeling', 'felt', 'feelings', 'emotional'],
+            'know': ['knowing', 'knowledge', 'known', 'unknown']
+        };
+        
+        for (const [family, words] of Object.entries(wordFamilies)) {
+            if (words.includes(word1) && words.includes(word2)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    getContextualNextWords(context) {
+        const contextLower = context.toLowerCase();
+        const suggestions = [];
+        
+        // Context-based next word patterns
+        const patterns = {
+            // After "I" or "I am"
+            'i am': ['happy', 'tired', 'working', 'thinking', 'feeling', 'going', 'here', 'ready'],
+            'i': ['think', 'know', 'want', 'need', 'like', 'love', 'hate', 'feel', 'am', 'will', 'can'],
+            
+            // After "the"
+            'the': ['best', 'worst', 'most', 'least', 'only', 'same', 'other', 'next', 'last', 'first'],
+            
+            // After "is" or "was"
+            'is': ['good', 'bad', 'great', 'awesome', 'terrible', 'amazing', 'wonderful', 'perfect'],
+            'was': ['good', 'bad', 'great', 'awesome', 'terrible', 'amazing', 'wonderful', 'perfect'],
+            
+            // After "in" or "at"
+            'in': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our'],
+            'at': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our'],
+            
+            // After "to"
+            'to': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our', 'go', 'come', 'get'],
+            
+            // After "for"
+            'for': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our', 'work', 'study'],
+            
+            // After "with"
+            'with': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our'],
+            
+            // After "and"
+            'and': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our', 'then', 'also'],
+            
+            // After "but"
+            'but': ['the', 'this', 'that', 'my', 'your', 'his', 'her', 'their', 'our', 'then', 'also'],
+            
+            // After "it"
+            'it': ['is', 'was', 'will', 'can', 'should', 'might', 'could', 'would', 'has', 'had'],
+            
+            // After "this"
+            'this': ['is', 'was', 'will', 'can', 'should', 'might', 'could', 'would', 'has', 'had'],
+            
+            // After "that"
+            'that': ['is', 'was', 'will', 'can', 'should', 'might', 'could', 'would', 'has', 'had']
+        };
+        
+        // Check for exact context matches
+        for (const [pattern, words] of Object.entries(patterns)) {
+            if (contextLower.endsWith(pattern)) {
+                suggestions.push(...words);
+            }
+        }
+        
+        // Check for partial matches (last word)
+        const lastWord = contextLower.split(/\s+/).pop();
+        for (const [pattern, words] of Object.entries(patterns)) {
+            if (pattern.endsWith(lastWord)) {
+                suggestions.push(...words);
+            }
+        }
+        
+        return [...new Set(suggestions)]; // Remove duplicates
+    }
+
+    getCommonNextWords() {
+        return [
+            'the', 'a', 'an', 'is', 'was', 'and', 'or', 'but', 'in', 'on', 'at',
+            'to', 'for', 'of', 'with', 'by', 'from', 'this', 'that', 'it',
+            'you', 'he', 'she', 'they', 'we', 'I', 'me', 'him', 'her', 'them',
+            'my', 'your', 'his', 'her', 'their', 'our', 'its', 'some', 'any',
+            'all', 'many', 'few', 'much', 'more', 'most', 'very', 'really',
+            'quite', 'rather', 'too', 'also', 'just', 'only', 'even', 'still',
+            'again', 'always', 'never', 'sometimes', 'often', 'usually'
+        ];
+    }
+
+    getColorBrightness(color) {
+        // Convert hex color to RGB and calculate brightness
+        const hex = color.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        
+        // Calculate brightness using standard formula
+        return (r * 299 + g * 587 + b * 114) / 1000;
+    }
+
+    updateTextColor() {
+        // Update text color based on current note color brightness
+        const brightness = this.getColorBrightness(this.color);
+        const textColor = brightness > 128 ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.9)';
+        const placeholderColor = brightness > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+        
+        this.textElement.style.color = textColor;
+        this.textElement.style.setProperty('--placeholder-color', placeholderColor);
+    }
+
+    // Validate hex color format
+    isValidHexColor(color) {
+        if (!color || typeof color !== 'string') {
+            return false;
+        }
+        
+        // Check if it's a valid hex color (#RRGGBB)
+        const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+        return hexRegex.test(color);
+    }
+
+    isKeyboardOpen() {
+        return this.virtualKeyboard && this.virtualKeyboard.parentNode;
+    }
+
+    closeAllKeyboards() {
+        // Close all open virtual keyboards
+        const openKeyboards = document.querySelectorAll('.virtual-keyboard');
+        openKeyboards.forEach(keyboard => {
+            if (keyboard.parentNode) {
+                keyboard.parentNode.removeChild(keyboard);
+            }
+        });
+        
+        // Reset editing state for all notes
+        this.notes.forEach(note => {
+            note.isEditing = false;
+            note.keyboardManuallyClosed = false; // Reset manual close flag
+            if (note.element) {
+                note.element.classList.remove('editing');
+            }
+            note.virtualKeyboard = null;
+            // Hide save button
+            if (note.saveButton) {
+                note.saveButton.style.display = 'none';
+            }
+        });
+        
+        console.log('All keyboards closed');
+    }
+
+    saveAndCloseKeyboard() {
+        // Visual feedback - briefly change button appearance
+        if (this.saveButton) {
+            this.saveButton.textContent = '✓';
+            this.saveButton.style.background = 'rgba(0,255,0,1)';
+            this.saveButton.style.transform = 'scale(1.2)';
+        }
+        
+        // Save the current text
+        this.text = this.textElement.value;
+        this.saveToStorage();
+        
+        // Close the keyboard
+        this.hideVirtualKeyboard();
+        
+        // Hide the save button
+        if (this.saveButton) {
+            this.saveButton.style.display = 'none';
+        }
+        
+        console.log('Note saved and keyboard closed');
+    }
+
+    showSaveButton() {
+        if (this.saveButton) {
+            this.saveButton.style.display = 'block';
+        }
+    }
+
+    hideSaveButton() {
+        if (this.saveButton) {
+            this.saveButton.style.display = 'none';
+        }
     }
 
     adjustKeyboardPosition() {
@@ -1025,7 +1440,32 @@ class StickyNote {
 
     hideVirtualKeyboard() {
         if (this.virtualKeyboard) {
-            this.virtualKeyboard.style.display = 'none';
+            // Remove the keyboard from DOM
+            if (this.virtualKeyboard.parentNode) {
+                this.virtualKeyboard.parentNode.removeChild(this.virtualKeyboard);
+            }
+            this.virtualKeyboard = null;
+            
+            // Clear any editing state
+            this.isEditing = false;
+            
+            // Remove editing class from note
+            if (this.element) {
+                this.element.classList.remove('editing');
+            }
+            
+            // Blur the textarea
+            if (this.textElement) {
+                this.textElement.blur();
+            }
+            
+            // Mark keyboard as manually closed
+            this.keyboardManuallyClosed = true;
+            
+            // Hide save button
+            this.hideSaveButton();
+            
+            console.log('Virtual keyboard hidden');
         }
     }
 
@@ -1062,7 +1502,8 @@ class StickyNote {
             case '✕':
                 this.hideVirtualKeyboard();
                 textarea.blur();
-                break;
+                // Don't refocus or update suggestions when closing keyboard
+                return;
             default:
             // Insert character at cursor position
             const newText = text.slice(0, start) + key + text.slice(end);
@@ -1089,6 +1530,18 @@ class StickyNote {
         }, 50);
     }
 
+    // Debounced keyboard size update for better performance during resize
+    debouncedUpdateKeyboardSizes() {
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        this.resizeTimeout = setTimeout(() => {
+            this.updateKeyboardButtonSizes();
+        }, 50); // 50ms delay
+    }
+
+
+
     updateKeyboardButtonSizes() {
         if (!this.virtualKeyboard) return;
         
@@ -1097,28 +1550,119 @@ class StickyNote {
         
         // Account for padding and margins
         const horizontalPadding = 24; // 12px padding on each side
-        const verticalPadding = 24;   // 12px padding on top/bottom
+        const verticalPadding = 20;   // Reduced padding to fit all rows
         const availableWidth = keyboardWidth - horizontalPadding;
         const availableHeight = keyboardHeight - verticalPadding;
         
-        // Calculate base button size based on keyboard dimensions
-        // Assume 10 keys per row on average for width calculation
-        const baseButtonWidth = availableWidth / 10;
-        const baseButtonHeight = availableHeight / 5; // 5 rows
+        // Define keyboard layout for better sizing
+        const keyboardLayout = [
+            ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '⌫'],
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'"],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+            ['space', '↵', '✕']
+        ];
         
-        // Ensure minimum and maximum sizes
-        const buttonWidth = Math.max(20, Math.min(60, baseButtonWidth));
-        const buttonHeight = Math.max(20, Math.min(50, baseButtonHeight));
+        // Calculate optimal button sizes based on layout
+        const maxKeysInRow = Math.max(...keyboardLayout.map(row => row.length));
+        const baseButtonWidth = availableWidth / maxKeysInRow;
+        const baseButtonHeight = availableHeight / keyboardLayout.length;
+        
+        // Ensure minimum and maximum sizes - smaller minimums to fit all keys
+        const buttonWidth = Math.max(12, Math.min(80, baseButtonWidth));
+        const buttonHeight = Math.max(12, Math.min(60, baseButtonHeight));
         
         // Calculate gap between buttons (proportional to button size)
-        const gap = Math.max(2, Math.min(6, buttonWidth * 0.15));
+        const gap = Math.max(2, Math.min(6, buttonWidth * 0.1));
         
         // Update all keyboard rows for proper spacing
         const keyRows = this.virtualKeyboard.querySelectorAll('.keyboard-row');
-        keyRows.forEach(row => {
+        keyRows.forEach((row, rowIndex) => {
             row.style.gap = gap + 'px';
             row.style.justifyContent = 'center';
-            row.style.margin = (gap * 0.5) + 'px 0';
+            row.style.margin = (gap * 0.3) + 'px 0'; // Reduced margin to fit all rows
+            
+            // Special handling for different rows
+            const rowKeys = keyboardLayout[rowIndex];
+            if (rowKeys) {
+                // Calculate total width needed for this row
+                let totalRowWidth = 0;
+                rowKeys.forEach(key => {
+                    let keyWidth = buttonWidth;
+                    if (key === 'space') {
+                        keyWidth = buttonWidth * 3; // Space bar
+                    } else if (key === '↵' || key === '✕') {
+                        keyWidth = buttonWidth * 1.5; // Enter and clear
+                    } else if (key === '⌫') {
+                        keyWidth = buttonWidth * 1.2; // Backspace
+                    }
+                    totalRowWidth += keyWidth;
+                });
+                
+                // Add gaps
+                totalRowWidth += gap * (rowKeys.length - 1);
+                
+                // Adjust if row is too wide
+                if (totalRowWidth > availableWidth) {
+                    const scaleFactor = availableWidth / totalRowWidth;
+                    const adjustedButtonWidth = buttonWidth * scaleFactor;
+                    const adjustedGap = gap * scaleFactor;
+                    
+                    row.style.gap = adjustedGap + 'px';
+                    
+                    // Update buttons in this row
+                    const rowButtons = row.querySelectorAll('button');
+                    rowButtons.forEach((button, buttonIndex) => {
+                        const key = button.textContent;
+                        let finalWidth = adjustedButtonWidth;
+                        
+                        if (key === 'space') {
+                            finalWidth = adjustedButtonWidth * 3;
+                        } else if (key === '↵' || key === '✕') {
+                            finalWidth = adjustedButtonWidth * 1.5;
+                        } else if (key === '⌫') {
+                            finalWidth = adjustedButtonWidth * 1.2;
+                        }
+                        
+                        button.style.width = finalWidth + 'px';
+                        button.style.height = buttonHeight + 'px';
+                        
+                        // Dynamic font size - smaller for very small buttons
+                        const fontSize = Math.max(6, Math.min(12, buttonHeight * 0.3));
+                        button.style.fontSize = fontSize + 'px';
+                        
+                        // Adjust padding - minimal for small buttons
+                        const padding = Math.max(0, Math.min(3, buttonHeight * 0.05));
+                        button.style.padding = padding + 'px';
+                    });
+                } else {
+                    // Normal sizing
+                    const rowButtons = row.querySelectorAll('button');
+                    rowButtons.forEach((button, buttonIndex) => {
+                        const key = button.textContent;
+                        let finalWidth = buttonWidth;
+                        
+                        if (key === 'space') {
+                            finalWidth = buttonWidth * 3;
+                        } else if (key === '↵' || key === '✕') {
+                            finalWidth = buttonWidth * 1.5;
+                        } else if (key === '⌫') {
+                            finalWidth = buttonWidth * 1.2;
+                        }
+                        
+                        button.style.width = finalWidth + 'px';
+                        button.style.height = buttonHeight + 'px';
+                        
+                        // Dynamic font size - smaller for very small buttons
+                        const fontSize = Math.max(6, Math.min(12, buttonHeight * 0.3));
+                        button.style.fontSize = fontSize + 'px';
+                        
+                        // Adjust padding - minimal for small buttons
+                        const padding = Math.max(0, Math.min(3, buttonHeight * 0.05));
+                        button.style.padding = padding + 'px';
+                    });
+                }
+            }
         });
 
         // Update resize handle size
@@ -1127,43 +1671,20 @@ class StickyNote {
             const handleSize = Math.max(16, Math.min(24, buttonHeight * 0.6));
             resizeHandle.style.width = handleSize + 'px';
             resizeHandle.style.height = handleSize + 'px';
-            resizeHandle.style.fontSize = Math.max(10, Math.min(14, handleSize * 0.5)) + 'px';
+            resizeHandle.style.fontSize = Math.max(8, Math.min(12, handleSize * 0.5)) + 'px';
         }
 
-        // Update all buttons
-        const buttons = this.virtualKeyboard.querySelectorAll('button');
-        buttons.forEach(button => {
-            const key = button.textContent;
-            
-            // Special sizing for control buttons (🖱️)
-            if (button.className.includes('control-button')) {
-                const controlSize = Math.max(24, Math.min(36, buttonHeight * 0.8));
-                button.style.width = controlSize + 'px';
-                button.style.height = controlSize + 'px';
-                button.style.fontSize = Math.max(12, Math.min(16, controlSize * 0.4)) + 'px';
-                button.style.padding = '2px';
-                return;
-            }
-            
-            // Special sizing for different key types
-            let finalWidth = buttonWidth;
-            if (key === 'space') {
-                finalWidth = buttonWidth * 4; // Space bar is 4x wider
-            } else if (key === '↵' || key === '✕') {
-                finalWidth = buttonWidth * 1.5; // Enter and clear are 1.5x wider
-            }
-            
-            button.style.width = finalWidth + 'px';
-            button.style.height = buttonHeight + 'px';
-            
-            // Dynamic font size based on button height
-            const fontSize = Math.max(10, Math.min(18, buttonHeight * 0.45));
-            button.style.fontSize = fontSize + 'px';
-            
-            // Adjust padding for better appearance
-            const padding = Math.max(2, Math.min(6, buttonHeight * 0.1));
-            button.style.padding = padding + 'px';
+        // Update control buttons (move button)
+        const controlButtons = this.virtualKeyboard.querySelectorAll('.control-button');
+        controlButtons.forEach(button => {
+            const controlSize = Math.max(24, Math.min(32, buttonHeight * 0.8));
+            button.style.width = controlSize + 'px';
+            button.style.height = controlSize + 'px';
+            button.style.fontSize = Math.max(10, Math.min(14, controlSize * 0.4)) + 'px';
+            button.style.padding = '2px';
         });
+        
+
     }
 
 
@@ -1279,6 +1800,9 @@ class NotepadWallpaper {
         // Get wallpaper engine reference
         this.wallpaper = this.getWallpaperEngineReference();
         
+        // Set up properties listener if available
+        this.setupPropertiesListener();
+        
         // Detect screen bounds and taskbar
         this.detectScreenBounds();
         
@@ -1287,58 +1811,107 @@ class NotepadWallpaper {
     }
 
     addNote(x = 100, y = 100) {
+        // Check max notes limit
+        let maxNotes = 5;
+        if (this.wallpaper) {
+            try {
+                maxNotes = parseInt(this.wallpaper.getProperty('max_notes') || 5);
+            } catch (error) {
+                console.log('Error reading max_notes property, using default:', error);
+            }
+        }
+        
+        if (this.notes.length >= maxNotes) {
+            console.log(`Maximum notes limit reached (${maxNotes})`);
+            return null;
+        }
+        
         const note = new StickyNote(x, y);
         note.wallpaper = this.wallpaper;
         note.screenBounds = this.screenBounds;
+
         this.notes.push(note);
         this.container.appendChild(note.element);
         return note;
     }
 
     loadNotes() {
-        if (!this.wallpaper) {
-            console.log('Wallpaper engine not available, using localStorage fallback');
-        const savedNotes = JSON.parse(localStorage.getItem('stickyNotes') || '[]');
-        savedNotes.forEach(noteData => {
-            const note = new StickyNote(
-                noteData.x,
-                noteData.y,
-                noteData.width,
-                noteData.height,
-                noteData.color,
-                noteData.text
-            );
-                note.wallpaper = this.wallpaper;
-            this.notes.push(note);
-            this.container.appendChild(note.element);
-        });
-            return;
+        // Get configuration from Wallpaper Engine properties if available
+        let defaultColor = '#ffff99';
+        let maxNotes = 5;
+        
+        if (this.wallpaper) {
+            try {
+                defaultColor = this.wallpaper.getProperty('default_note_color') || '#ffff99';
+                maxNotes = parseInt(this.wallpaper.getProperty('max_notes') || 5);
+            } catch (error) {
+                console.log('Error reading properties, using defaults:', error);
+            }
         }
         
-        const noteCount = parseInt(this.wallpaper.getProperty('note_count') || 0);
-        console.log(`Loading ${noteCount} notes from properties`);
-        
-        for (let i = 1; i <= noteCount; i++) {
-            const noteId = this.wallpaper.getProperty(`note_${i}_id`);
-            if (noteId && noteId !== '') {
+        // Load notes from localStorage
+        try {
+            const savedNotes = JSON.parse(localStorage.getItem('stickyNotes') || '[]');
+            console.log(`Loading ${savedNotes.length} notes from localStorage`);
+            
+            // Limit to max notes
+            const notesToLoad = savedNotes.slice(0, maxNotes);
+            
+            notesToLoad.forEach(noteData => {
                 const note = new StickyNote(
-                    parseInt(this.wallpaper.getProperty(`note_${i}_x`) || 100),
-                    parseInt(this.wallpaper.getProperty(`note_${i}_y`) || 100),
-                    parseInt(this.wallpaper.getProperty(`note_${i}_width`) || 200),
-                    parseInt(this.wallpaper.getProperty(`note_${i}_height`) || 150),
-                    this.wallpaper.getProperty(`note_${i}_color`) || '#ffff99',
-                    this.wallpaper.getProperty(`note_${i}_text`) || ''
+                    noteData.x || 100,
+                    noteData.y || 100,
+                    noteData.width || 200,
+                    noteData.height || 150,
+                    this.isValidHexColor(noteData.color) ? noteData.color : defaultColor,
+                    noteData.text || ''
                 );
-                note.id = noteId;
+                
+                // Set the saved ID if it exists
+                if (noteData.id) {
+                    note.id = noteData.id;
+                }
+                
                 note.wallpaper = this.wallpaper;
                 note.screenBounds = this.screenBounds;
-            this.notes.push(note);
-            this.container.appendChild(note.element);
-            }
+                this.notes.push(note);
+                this.container.appendChild(note.element);
+            });
+        } catch (error) {
+            console.log('Error loading notes from localStorage:', error);
         }
     }
 
+    closeAllKeyboards() {
+        // Close all open virtual keyboards
+        const openKeyboards = document.querySelectorAll('.virtual-keyboard');
+        openKeyboards.forEach(keyboard => {
+            if (keyboard.parentNode) {
+                keyboard.parentNode.removeChild(keyboard);
+            }
+        });
+        
+        // Reset editing state for all notes
+        this.notes.forEach(note => {
+            note.isEditing = false;
+            note.keyboardManuallyClosed = false; // Reset manual close flag
+            if (note.element) {
+                note.element.classList.remove('editing');
+            }
+            note.virtualKeyboard = null;
+            // Hide save button
+            if (note.saveButton) {
+                note.saveButton.style.display = 'none';
+            }
+        });
+        
+        console.log('All keyboards closed');
+    }
+
     clearAllNotes() {
+        // Close all open keyboards first
+        this.closeAllKeyboards();
+        
         // Remove all notes from DOM
         this.notes.forEach(note => {
             note.remove();
@@ -1347,25 +1920,13 @@ class NotepadWallpaper {
         // Clear the notes array
         this.notes = [];
         
-        // Clear from properties
-        if (this.wallpaper) {
-            const noteCount = parseInt(this.wallpaper.getProperty('note_count') || 0);
-            for (let i = 1; i <= noteCount; i++) {
-                this.wallpaper.setProperty(`note_${i}_id`, '');
-                this.wallpaper.setProperty(`note_${i}_text`, '');
-                this.wallpaper.setProperty(`note_${i}_x`, 0);
-                this.wallpaper.setProperty(`note_${i}_y`, 0);
-                this.wallpaper.setProperty(`note_${i}_color`, '255 255 153');
-                this.wallpaper.setProperty(`note_${i}_width`, 200);
-                this.wallpaper.setProperty(`note_${i}_height`, 150);
-            }
-            this.wallpaper.setProperty('note_count', 0);
+        // Clear from localStorage
+        try {
+            localStorage.removeItem('stickyNotes');
+            console.log('All notes cleared from display and localStorage');
+        } catch (error) {
+            console.log('Error clearing localStorage:', error);
         }
-        
-        // Clear from localStorage as fallback
-        localStorage.removeItem('stickyNotes');
-        
-        console.log('All notes cleared from display and properties');
     }
 
     detectScreenBounds() {
@@ -1402,6 +1963,41 @@ class NotepadWallpaper {
         console.log('Screen bounds detected:', this.screenBounds);
     }
 
+
+
+    setupPropertiesListener() {
+        // Set up Wallpaper Engine properties listener if available
+        if (window.wallpaperRegisterAudioListener) {
+            try {
+                window.wallpaperRegisterAudioListener({
+                    setProperty: (name, value) => {
+                        console.log('Property changed:', name, value);
+                        // Handle property changes if needed
+                    }
+                });
+                console.log('Properties listener set up successfully');
+            } catch (error) {
+                console.log('Failed to set up properties listener:', error);
+            }
+        }
+    }
+
+    // Validate hex color format
+    isValidHexColor(color) {
+        if (!color || typeof color !== 'string') {
+            return false;
+        }
+        
+        // Check if it's a valid hex color (#RRGGBB)
+        const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+        return hexRegex.test(color);
+    }
+
+    // Get default hex color
+    getDefaultColor() {
+        return '#ffff99'; // Default yellow
+    }
+
     getWallpaperEngineReference() {
         // Try multiple ways to get Wallpaper Engine reference
         const possibleReferences = [
@@ -1409,7 +2005,8 @@ class NotepadWallpaper {
             window.wallpaperPropertiesListener,
             window.wallpaperEngine,
             window.engine,
-            window.thisScene
+            window.thisScene,
+            window.wallpaper
         ];
         
         for (const ref of possibleReferences) {
@@ -1417,6 +2014,12 @@ class NotepadWallpaper {
                 console.log('Found Wallpaper Engine reference:', ref);
                 return ref;
             }
+        }
+        
+        // Try to access properties directly from window
+        if (window.wallpaperRegisterAudioListener && window.wallpaperRegisterAudioListener.getProperty) {
+            console.log('Found Wallpaper Engine reference via wallpaperRegisterAudioListener');
+            return window.wallpaperRegisterAudioListener;
         }
         
         console.log('No Wallpaper Engine reference found, using fallback');
@@ -1613,7 +2216,11 @@ class NotepadWallpaper {
         const isOnUI = clickedElement.closest('#notepad-container') || 
                       clickedElement.closest('button') ||
                       clickedElement.closest('input') ||
-                      clickedElement.closest('.control-panel');
+                      clickedElement.closest('.control-panel') ||
+                      clickedElement.closest('.suggestions-bar') ||
+                      clickedElement.closest('.suggestion-button') ||
+                      clickedElement.closest('.resize-handle') ||
+                      clickedElement.closest('.control-button');
         
         // If clicking outside the editing note, keyboard, and UI elements, close the keyboard
         if (!isOnEditingNote && !isOnKeyboard && !isOnUI) {
@@ -1627,7 +2234,9 @@ class NotepadWallpaper {
                 noteInstance.hideVirtualKeyboard();
             } else {
                 // Fallback: just remove the keyboard element
-                openKeyboard.remove();
+                if (openKeyboard.parentNode) {
+                    openKeyboard.parentNode.removeChild(openKeyboard);
+                }
             }
         }
     }

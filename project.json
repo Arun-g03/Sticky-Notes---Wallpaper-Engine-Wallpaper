@@ -1,0 +1,82 @@
+{
+	"contentrating" : "Everyone",
+	"description" : "Interactive note-taking wallpaper with draggable sticky notes. Create, edit, and organize your thoughts directly on your desktop background.",
+	"file" : "index.html",
+	"general" : 
+	{
+		"properties" : 
+		{
+			"note_1_color" : 
+			{
+				"index" : 4,
+				"order" : 104,
+				"text" : "Note 1 Color",
+				"type" : "color",
+				"value" : "255 255 153"
+			},
+			"note_1_text" : 
+			{
+				"index" : 1,
+				"order" : 101,
+				"text" : "Note 1 Text",
+				"type" : "textinput",
+				"value" : ""
+			},
+			"note_1_x" : 
+			{
+				"index" : 2,
+				"max" : 1920,
+				"min" : 0,
+				"order" : 102,
+				"text" : "Note 1 X Position",
+				"type" : "slider",
+				"value" : 100
+			},
+			"note_1_y" : 
+			{
+				"index" : 3,
+				"max" : 1080,
+				"min" : 0,
+				"order" : 103,
+				"text" : "Note 1 Y Position",
+				"type" : "slider",
+				"value" : 100
+			},
+			"note_count" : 
+			{
+				"index" : 0,
+				"max" : 50,
+				"min" : 0,
+				"order" : 100,
+				"text" : "Number of Notes",
+				"type" : "slider",
+				"value" : 0
+			},
+			"schemecolor" : 
+			{
+				"order" : 0,
+				"text" : "ui_browse_properties_scheme_color",
+				"type" : "color",
+				"value" : "0 0 0"
+			}
+		},
+		"supportsaudioprocessing" : false
+	},
+	"preview" : "preview.jpg",
+	"snapshotformat" : -1,
+	"snapshotoverlay" : "",
+	"tags" : 
+	[
+		"Abstract",
+		"Anime",
+		"Cartoon",
+		"Fantasy",
+		"Game",
+		"Movie",
+		"Nature",
+		"Other"
+	],
+	"title" : "Interactive Notes Wallpaper",
+	"type" : "web",
+	"version" : 0
+}

@@ -1,0 +1,116 @@
+/* Additional styles for the Sticky Notes Wallpaper */
+
+/* Custom note animations */
+.sticky-note {
+    transition: all 0.2s ease-in-out;
+}
+
+.sticky-note:active {
+    transform: scale(0.98);
+}
+
+/* Note header styling */
+.sticky-note > div:first-child {
+    background: rgba(255,255,255,0.1);
+    margin: -10px -10px 8px -10px;
+    padding: 10px;
+    border-radius: 2px 2px 0 0;
+}
+
+/* Text area focus effect */
+.sticky-note textarea:focus {
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    padding: 2px;
+}
+
+/* Resize handle hover effect */
+.resize-handle:hover {
+    background: rgba(0,0,0,0.5) !important;
+}
+
+/* Add button styling */
+#add-note-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+#add-note-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Instructions panel styling */
+.instructions-panel {
+    backdrop-filter: blur(10px);
+    background: rgba(0,0,0,0.8);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Custom scrollbar for the entire page */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .sticky-note {
+        min-width: 150px;
+        min-height: 100px;
+    }
+    
+    #add-note-btn {
+        font-size: 12px;
+        padding: 8px 16px;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    }
+    
+    .sticky-note {
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .sticky-note {
+        border: 2px solid #000;
+    }
+    
+    .sticky-note textarea {
+        color: #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .sticky-note {
+        animation: none;
+        transition: none;
+    }
+    
+    button {
+        transition: none;
+    }
+} 

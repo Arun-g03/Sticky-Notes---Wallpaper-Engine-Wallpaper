@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sticky Notes Wallpaper</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #00000000 0%, #764ba211 100%);
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Custom scrollbar for textareas */
+        textarea::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        textarea::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+            border-radius: 3px;
+        }
+
+        textarea::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.3);
+            border-radius: 3px;
+        }
+
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.5);
+        }
+
+        /* Animation for new notes */
+        @keyframes noteAppear {
+            from {
+                opacity: 0;
+                transform: scale(0.8) rotate(-5deg);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) rotate(0deg);
+            }
+        }
+
+        .sticky-note {
+            animation: noteAppear 0.3s ease-out;
+        }
+
+        /* Hover effects */
+        .sticky-note:hover {
+            box-shadow: 3px 3px 12px rgba(0,0,0,0.15) !important;
+        }
+
+        /* Button hover effects */
+        button:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+            transition: all 0.2s ease;
+        }
+
+        /* Clear button specific styling */
+        button[style*="rgba(255,0,0,0.8)"]:hover {
+            background: rgba(255,0,0,0.9) !important;
+            transform: scale(1.05);
+        }
+
+        /* Color picker styling */
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 2px;
+        }
+
+        /* Prevent desktop interaction */
+        .sticky-note {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            pointer-events: auto;
+        }
+
+        .sticky-note textarea {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+            pointer-events: auto;
+        }
+
+        /* Prevent text selection on non-editable elements */
+        .sticky-note *:not(textarea) {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Improve textarea typing experience */
+        .sticky-note textarea {
+            transition: background-color 0.2s ease;
+        }
+
+        .sticky-note textarea:focus {
+            background-color: rgba(255,255,255,0.1) !important;
+            outline: 2px solid rgba(0,0,0,0.2);
+            outline-offset: -2px;
+        }
+
+        /* Visual feedback for editing state */
+        .sticky-note.editing {
+            box-shadow: 0 0 15px rgba(0,0,0,0.3) !important;
+        }
+
+        /* Text layer styling */
+        .text-layer {
+            transition: all 0.2s ease;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .text-layer:hover {
+            background: rgba(255,255,255,0.15) !important;
+        }
+
+        .sticky-note.editing .text-layer {
+            background: rgba(255,255,255,0.2) !important;
+            border-color: rgba(0,0,0,0.2);
+        }
+
+        /* Placeholder text styling */
+        .sticky-note textarea::placeholder {
+            color: rgba(0,0,0,0.5);
+            font-style: italic;
+        }
+
+        /* Virtual keyboard styling */
+        .virtual-keyboard {
+            animation: keyboardSlideUp 0.3s ease-out;
+        }
+
+        @keyframes keyboardSlideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+
+        .virtual-keyboard button:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.4) !important;
+        }
+
+        .virtual-keyboard button:hover {
+            background: rgba(255,255,255,0.4) !important;
+            transform: scale(1.1);
+        }
+
+        /* Control button specific styling */
+        .virtual-keyboard button[style*="cursor: se-resize"]:hover,
+        .virtual-keyboard button[style*="cursor: move"]:hover {
+            background: rgba(255,255,255,0.5) !important;
+            transform: scale(1.05);
+        }
+
+        .virtual-keyboard button[style*="cursor: se-resize"]:active,
+        .virtual-keyboard button[style*="cursor: move"]:active {
+            background: rgba(255,255,255,0.6) !important;
+            transform: scale(0.95);
+        }
+
+        /* Keyboard movement and resize improvements */
+        .virtual-keyboard {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .virtual-keyboard:active {
+            cursor: grabbing !important;
+        }
+
+        .virtual-keyboard button {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        /* Word suggestions styling */
+        .suggestions-bar {
+            animation: suggestionsSlideDown 0.3s ease-out;
+        }
+
+        @keyframes suggestionsSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .suggestions-bar button {
+            animation: suggestionAppear 0.2s ease-out;
+        }
+
+        @keyframes suggestionAppear {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    
+
+    
+    <script src="word_list.js"></script>
+    <script src="notepad.js"></script>
+</body>
+</html> 

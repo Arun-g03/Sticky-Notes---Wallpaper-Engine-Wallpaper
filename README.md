@@ -3,9 +3,11 @@
 A beautiful and functional notetaking wallpaper that allows you to create, edit, resize, and manage sticky notes directly on your desktop.
 
 ![Virtual Keyboard Interface](Docs/Images/keyboard.png)
+
 *The virtual keyboard with predictive text suggestions*
 
 ![Notes Selection Interface](Docs/Images/NotesPick.png)
+
 *Creating and managing sticky notes on your desktop*
 
 ## Features
